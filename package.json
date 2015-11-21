@@ -1,0 +1,22 @@
+{
+  "name": "dynamic-dns",
+  "version": "1.0.0",
+  "description": "A DNS that's used for VPN environment that doesn't affect the local states.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+ssh://git@github.com/lygstate/dynamic-dns.git"
+  },
+  "keywords": [
+    "dns"
+  ],
+  "author": "Yonggang Luo",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/lygstate/dynamic-dns/issues"
+  },
+  "homepage": "https://github.com/lygstate/dynamic-dns#readme"
+}
