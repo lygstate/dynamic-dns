@@ -133,6 +133,7 @@ function dynamicDNS(name, type){
         if (!item.address) {
           continue;
         }
+        item = JSON.parse(JSON.stringify(item));
         item.dnsResolver = i;
         ipList.push(item);
       }
@@ -161,21 +162,10 @@ let server = dns.createServer();
 
 server.on('request', function (request, response) {
   let question = request.question[0];
-  console.log("The question is:" + JSON.stringify(question));
+  //console.log("The question is:" + JSON.stringify(question));
   dynamicDNS(question.name, question.type).then((ipList)=>{
-    console.log("The answer is:" + JSON.stringify(ipList));
-    for (let ip of ipList) {
-      if (!ip.address) {
-        continue;
-      }
-      response.answer.push(dns.A({
-        name: ip.name,
-        type: ip.type,
-        address: ip.address,
-        class: ip.class,
-        ttl: ip.ttl,
-      }));
-    }
+    //console.log("The answer is:" + JSON.stringify(ipList));
+    response.answer = ipList;
     response.send();
   });
 });
