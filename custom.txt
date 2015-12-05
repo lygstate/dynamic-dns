@@ -3,3 +3,7 @@ google.com
 facebook.com
 twitter.com
 gist.github.com
+alexa.com
+marieclaire.com.tw
+s3.amazonaws.com
+@@||cloudfront.net
