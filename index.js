@@ -13,6 +13,8 @@ const pac = require('./pac.js');
 const RuleList = pac.RuleList;
 const Conditions = pac.Conditions;
 
+var logger = require('./log');
+
 /*
 //console.log(ruleList);
 */
@@ -127,16 +129,24 @@ let pingAddresses = (ipList)=>{
 }
 
 function dynamicDNS(question){
-  let dnsAddress = match(question.name).profileName;
+  let profile = match(question.name);
   return spawn(function*(){
     let ipList = yield resolve({
       name: question.name,
       type: question.type || dns.consts.nameToQtype('A'),
-      dnsAddress: dnsAddress,
+      dnsAddress: profile.profileName,
       dnsType: 'udp',
     })
-    console.log("The question is:" + JSON.stringify(question), dnsAddress);
-    console.log("The answer is:" + JSON.stringify(ipList));
+    let logString = JSON.stringify({
+      question: question,
+      answer: ipList,
+      profile: profile,
+    }, null, 2);
+    if (ipList.length > 0) {
+      logger.info(logString);
+    } else {
+      logger.warn(logString);
+    }
     return ipList;
   });
 }
