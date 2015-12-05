@@ -20,6 +20,8 @@
   },
   "homepage": "https://github.com/lygstate/dynamic-dns#readme",
   "dependencies": {
+    "ip-address": "^4.0.0",
+    "uglify-js": "^2.6.1",
     "native-dns": "^0.7.0",
     "ping": "^0.1.10"
   }

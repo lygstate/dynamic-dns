@@ -1,0 +1,4 @@
+[AutoProxy 0.2.9]
+google.com
+facebook.com
+twitter.com
