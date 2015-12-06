@@ -123,7 +123,6 @@ let addRouteWin32 = (route, profile, options)=>{
   if (networkInterface) {
     routeAddCommand += ` if ${networkInterface}`
   }
-  console.log(routeAddCommand);
   return exec(routeAddCommand, {cwd:rootDir})
 }
 
