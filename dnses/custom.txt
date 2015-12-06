@@ -1,9 +1,11 @@
 [AutoProxy 0.2.9]
 google.com
+google.co.jp
 facebook.com
 twitter.com
 gist.github.com
 alexa.com
 marieclaire.com.tw
 s3.amazonaws.com
+github.com
 @@||cloudfront.net

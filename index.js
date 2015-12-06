@@ -3,6 +3,7 @@ const dns = require('./src/dns.js');
 const route = require('./src/route.js');
 const ArgumentParser = require('argparse').ArgumentParser;
 const spawn = require('./src/Spawn.js').spawn;
+const path = require('path');
 
 exports.createArgumentParser = ()=>{
   let parser = new ArgumentParser({
@@ -90,6 +91,9 @@ exports.main = ()=>{
   if (args.routeClear) {
     args.route = true;
     args.clear = true;
+  }
+  if (args.config) {
+    args.config = path.resolve(args.config)
   }
   spawn(function*(){
     try {

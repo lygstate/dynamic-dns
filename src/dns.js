@@ -15,7 +15,10 @@ const Conditions = pac.Conditions;
 
 var logger = require('./log');
 
-let dnsConfigText = fs.readFileSync(path.join(__dirname, '..', 'dns.json'), 'utf8');
+let dnsConfigPath = path.join(__dirname, '..', 'dns.json');
+let dnsConfigText = fs.readFileSync(dnsConfigPath, 'utf8');
+let dnsConfigDir = path.join(dnsConfigPath, '..');
+console.log(dnsConfigDir);
 let dnsConfig = JSON.parse(dnsConfigText);
 
 let match = (host)=>{
@@ -100,7 +103,7 @@ exports.start = ()=>{
   console.log(dnsConfig);
 
   dnsConfig.profiles.forEach((profile)=>{
-    let proxylistBase64 = fs.readFileSync(path.join(__dirname, '..', profile.path), 'utf8');
+    let proxylistBase64 = fs.readFileSync(path.join(dnsConfigDir, profile.path), 'utf8');
     let formatHandler = RuleList['AutoProxy']
     let ruleList = formatHandler.preprocess(proxylistBase64)
     let defaultProfileName = profile.defaultProfileName || dnsConfig.defaultProfileName;

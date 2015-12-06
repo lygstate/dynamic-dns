@@ -117,8 +117,11 @@ function deleteRouteWin32(route, option) {
 function deleteRoutesWin32(routes, options) {
   return spawn(function*(){
     let stdout = '';
+    let addingRouteProcess = new ProgressBar(':Deleting routes [:bar] :percent :etas', {width: 60, total: routes.length });
+
     for (let route of routes) {
       stdout += yield deleteRouteWin32(route, options);
+      addingRouteProcess.tick();
     }
     return stdout;
   });
@@ -127,6 +130,7 @@ function deleteRoutesWin32(routes, options) {
 function prepareRoutes(options){
   return spawn(function*(){
     let routeConfigPath = options.config || path.join(rootDir, 'route.json')
+    console.log(routeConfigPath)
     let routeConfigDir = path.join(routeConfigPath, '..');
     let routeConfigText = fs.readFileSync(routeConfigPath, 'utf8');
     let routeConfig = JSON.parse(routeConfigText);
@@ -185,7 +189,7 @@ function addRoutesWin32(routeConfig, existsRoutes, options) {
         addingRouteProcess.tick();
       }
     }
-    console.log(stdout);
+    //console.log(stdout);
     return stdout;
   });
 }
@@ -209,6 +213,9 @@ exports.route = (options)=>{
       let routeConfig = yield prepareRoutes(options);
       if (!options.prepare) {
         yield routeHandlers.addRoutes(routeConfig, routes, options);
+        let newOption = JSON.parse(JSON.stringify(options));
+        newOption.force = true;
+        routes = yield routeHandlers.existRoutes(newOption);
       }
     }
   });
