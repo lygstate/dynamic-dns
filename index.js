@@ -95,6 +95,7 @@ exports.main = ()=>{
   if (args.config) {
     args.config = path.resolve(args.config)
   }
+  args.rootDir = __dirname;
   spawn(function*(){
     try {
       if (args.route) {

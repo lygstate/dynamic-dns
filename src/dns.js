@@ -9,32 +9,7 @@ const path = require('path');
 const pac = require('./pac.js');
 const RuleList = pac.RuleList;
 const Conditions = pac.Conditions;
-
-var logger = require('./log');
-
-let dnsConfigPath = path.join(__dirname, '..', 'dns.json');
-let dnsConfigText = fs.readFileSync(dnsConfigPath, 'utf8');
-let dnsConfigDir = path.join(dnsConfigPath, '..');
-console.log(dnsConfigDir);
-let dnsConfig = JSON.parse(dnsConfigText);
-
-let match = (host)=>{
-  let request = {
-    scheme: 'http',
-    host: host,
-    url: 'http://' + host + '/',
-  }
-  for (let profile of dnsConfig.profiles) {
-    for (let rule of profile.rules) {
-      if (Conditions.match(rule.condition, request)) {
-        return rule
-      }
-    }
-  }
-  return {
-    profileName: dnsConfig.defaultProfileName
-  }
-}
+const logger = require('./log');
 
 let resolveName = (options)=>{
   let question = dns.Question({
@@ -72,8 +47,26 @@ let resolveName = (options)=>{
   return deferred.promise;
 }
 
-function dynamicDNS(question){
-  let profile = match(question.name);
+let match = (dnsConfig, host)=>{
+  let request = {
+    scheme: 'http',
+    host: host,
+    url: 'http://' + host + '/',
+  }
+  for (let profile of dnsConfig.profiles) {
+    for (let rule of profile.rules) {
+      if (Conditions.match(rule.condition, request)) {
+        return rule
+      }
+    }
+  }
+  return {
+    profileName: dnsConfig.defaultProfileName
+  }
+}
+
+let dynamicDNS = (dnsConfig, question)=>{
+  let profile = match(dnsConfig, question.name);
   return spawn(function*(){
     let ipList = yield resolveName({
       name: question.name,
@@ -95,24 +88,26 @@ function dynamicDNS(question){
   });
 }
 
-exports.start = ()=>{
-  console.log(dnsConfig);
+exports.start = (options)=>{
+  let dnsConfigPath = options.config || path.join(options.rootDir, 'dns.json');
+  let dnsConfigText = fs.readFileSync(dnsConfigPath, 'utf8');
+  let dnsConfigDir = path.join(dnsConfigPath, '..');
+  let dnsConfig = JSON.parse(dnsConfigText);
 
   dnsConfig.profiles.forEach((profile)=>{
     let proxylistBase64 = fs.readFileSync(path.join(dnsConfigDir, profile.path), 'utf8');
-    let formatHandler = RuleList['AutoProxy']
+    let formatHandler = RuleList[profile.format || 'AutoProxy']
     let ruleList = formatHandler.preprocess(proxylistBase64)
     let defaultProfileName = profile.defaultProfileName || dnsConfig.defaultProfileName;
     profile.rules = formatHandler.parse(ruleList, profile.matchProfileName, defaultProfileName)
   });
-  dynamicDNS({name:'google.com'});
-  dynamicDNS({name:'facebook.com'});
-  dynamicDNS({name:'twitter.com'});
-  dynamicDNS({name:'baidu.com'});
+  dynamicDNS(dnsConfig, {name:'google.com'});
+  dynamicDNS(dnsConfig, {name:'facebook.com'});
+  dynamicDNS(dnsConfig, {name:'twitter.com'});
+  dynamicDNS(dnsConfig, {name:'baidu.com'});
 
-
-  console.log('facebook', match('www.facebook.com').profileName);
-  console.log('google', match('google.com').profileName);
+  console.log('facebook', match(dnsConfig, 'www.facebook.com').profileName);
+  console.log('google', match(dnsConfig, 'google.com').profileName);
 
   for (let i of [1,2,3]) {
     let startTime = Date.now();
@@ -122,9 +117,8 @@ exports.start = ()=>{
   let server = dns.createServer();
 
   server.on('request', function (request, response) {
-    let question = request.question[0];
-    dynamicDNS(question, question.type).then((ipList)=>{
-      response.answer = ipList;
+    dynamicDNS(dnsConfig, request.question[0]).then((answer)=>{
+      response.answer = answer;
       response.send();
     });
   });

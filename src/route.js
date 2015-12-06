@@ -10,9 +10,6 @@ const ProgressBar = require('progress');
 
 const Q = require('q');
 const spawn = require('./Spawn.js').spawn;
-const defer = require('./Deferred.js').defer;
-
-const rootDir = path.join(__dirname, '..')
 
 const RouteWin32 = require('./RouteWin32.js');
 
@@ -63,16 +60,15 @@ let processCustomRoutes = (fileContent)=>{
 
 let prepareRoutes = (options)=>{
   return spawn(function*(){
-    let routeConfigPath = options.config || path.join(rootDir, 'route.json')
-    let routeConfigDir = path.join(routeConfigPath, '..');
-    let routeConfigText = fs.readFileSync(routeConfigPath, 'utf8');
+    let routeConfigText = fs.readFileSync(options.config, 'utf8');
     let routeConfig = JSON.parse(routeConfigText);
 
     routeConfig.totalRoutes = 0;
     for (let profile of routeConfig.profiles) {
       if (profile.url) {
         let fileContent = '';
-        let filePath = path.join(routeConfigDir,profile.path || '', crypto.createHash('md5').update(profile.url).digest('hex') + '.log.txt');
+        let hashFilename = crypto.createHash('md5').update(profile.url).digest('hex') + '.log.txt';
+        let filePath = path.join(options.configDir, routeConfig.cachePath || '', hashFilename);
         if (!options.force && fs.existsSync(filePath)) {
           fileContent = fs.readFileSync(filePath, 'utf8');
         } else {
@@ -83,7 +79,7 @@ let prepareRoutes = (options)=>{
         }
         profile.routes = processOnlineRoutes(fileContent);
       } else if (profile.path){
-        let filePath = path.join(routeConfigDir, profile.path);
+        let filePath = path.join(options.configDir, profile.path);
         let fileContent = fs.readFileSync(filePath, 'utf8');
         profile.routes = processCustomRoutes(fileContent);
       }
@@ -186,18 +182,20 @@ let addRoutes = (options)=>{
 }
 
 exports.route = (options)=>{
+  options = JSON.parse(JSON.stringify(options));
   return spawn(function*(){
     let osPlatform = os.platform();
     let routeHandlers = allRouteHandlers[osPlatform];
-    let newOption = JSON.parse(JSON.stringify(options));
-    newOption.routeHandlers = routeHandlers;
-    newOption.rootDir = rootDir;
-    if (newOption.clear) {
-      yield deleteRoutes(newOption);
+    options.routeHandlers = routeHandlers;
+    options.config = options.config || path.join(options.rootDir, 'route.json')
+    options.configDir = path.join(options.config, '..');
+    options.routeConfig = yield prepareRoutes(options);
+
+    if (options.clear) {
+      yield deleteRoutes(options);
     } else {
-      newOption.routeConfig = yield prepareRoutes(newOption);
-      if (!newOption.prepare) {
-        yield addRoutes(newOption);
+      if (!options.prepare) {
+        yield addRoutes(options);
       }
     }
   });
