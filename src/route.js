@@ -40,7 +40,7 @@ function processOnlineRoutes(fileContent) {
 }
 
 function processCustomRoutes(fileContent) {
-  const customRegExp = /\r\n\s*([0-9\.]+)\|([0-9]+)\s*\r\n/gmi
+  const customRegExp = /[^0-9\.\r\n\s]*([0-9\.]+)\|([0-9]+)[^0-9\.\r\n\s]*/gmi
   let routes = [];
   let match = null;
   while (match = customRegExp.exec(fileContent)) {

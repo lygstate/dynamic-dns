@@ -8,4 +8,5 @@ alexa.com
 marieclaire.com.tw
 s3.amazonaws.com
 github.com
+||gstatic.com
 @@||cloudfront.net
