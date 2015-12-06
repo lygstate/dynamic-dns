@@ -63,13 +63,14 @@ function exec(command, options) {
       result: result,
       error: error,
       stdout: stdout,
-      stderr: stderr
+      stderr: stderr,
+      command: command,
     });
   });
   return deferred.promise;
 }
 
-function existRoutesWin32(options) {
+let existRoutesWin32 = (options)=>{
   return spawn(function*(){
     let filePath = path.join(rootDir, 'routes', 'route-print.log.txt');
     if (!options.force && fs.existsSync(filePath)) {
@@ -107,24 +108,27 @@ function existRoutesWin32(options) {
   })
 }
 
-function deleteRouteWin32(route, option) {
-  let deleteRouteCommand = `route delete ${route.route}`;
-  return exec(deleteRouteCommand, {cwd:rootDir}).then((result)=>{
-    return deleteRouteCommand + ':' + result.stderr + result.stdout;
-  });
+let addRouteWin32 = (route, profile, options)=>{
+  // TODO: once os.networkInterfaces() are works properly
+  // then use it instead of networkInterface paramter
+  // we could be able to retrive the networkInterfaces from the 
+  // gateWay
+  let gateWay = route.gateWay || profile.gateWay
+    || options.routeConfig.gateWay || options.gateWay || '192.168.1.1';
+  let metric = route.metric || profile.metric
+    || options.routeConfig.metric || options.metric || '5';
+  let networkInterface = route.networkInterface || profile.networkInterface
+    || options.routeConfig.networkInterface || options.networkInterface;
+  let routeAddCommand = `route add ${route.route} mask ${route.mask} ${gateWay} metric ${metric}`;
+  if (networkInterface) {
+    routeAddCommand += ` if ${networkInterface}`
+  }
+  console.log(routeAddCommand);
+  return exec(routeAddCommand, {cwd:rootDir})
 }
 
-function deleteRoutesWin32(routes, options) {
-  return spawn(function*(){
-    let stdout = '';
-    let addingRouteProcess = new ProgressBar(':Deleting routes [:bar] :percent :etas', {width: 60, total: routes.length });
-
-    for (let route of routes) {
-      stdout += yield deleteRouteWin32(route, options);
-      addingRouteProcess.tick();
-    }
-    return stdout;
-  });
+let deleteRouteWin32 = (route, option)=>{
+  return exec(`route delete ${route.route}`, {cwd:rootDir});
 }
 
 function prepareRoutes(options){
@@ -169,36 +173,54 @@ let routesToSet = (routes)=>{
   return existsRoutes;
 }
 
-function addRoutesWin32(routeConfig, existsRoutes, options) {
-  let existRouteSet = routesToSet(existsRoutes);
+function deleteRoutes(options) {
   return spawn(function*(){
-    let addingRouteProcess = new ProgressBar(':Adding routes [:bar] :percent :etas', {width: 60, total: routeConfig.totalRoutes });
-    let stdout = "";
-    for (let profile of routeConfig.profiles) {
+    let routeHandlers = options.routeHandlers;
+    let i = 0;
+    while (true) {
+      let existsRoutes = yield routeHandlers.existRoutes(options);
+      if (!existsRoutes || existsRoutes.length === 0) {
+        break;
+      }
+      let deleteRouteProcess = new ProgressBar(':Deleting exist routes [:bar] :percent :etas', {width: 60, total: existsRoutes.length });
+
+      for (let route of existsRoutes) {
+        yield routeHandlers.deleteRoute(route, options);
+        deleteRouteProcess.tick();
+      }
+      ++i;
+    }
+  });
+}
+
+function addRoutes(options) {
+  return spawn(function*(){
+    let routeHandlers = options.routeHandlers;
+    options.force = false;
+    let existsRoutes = yield routeHandlers.existRoutes(options);
+    let existRouteSet = routesToSet(existsRoutes);
+    let progressOption = {width: 60, total: options.routeConfig.totalRoutes};
+    let addRouteProcess = new ProgressBar(':Adding routes [:bar] :percent :etas', progressOption);
+    for (let profile of options.routeConfig.profiles) {
       for (let route of profile.routes) {
+        addRouteProcess.tick();
+
         if (profile.deleteFirst || existRouteSet.has(route.route)){
-          stdout += yield deleteRouteWin32(route, options);
+          let result = yield routeHandlers.deleteRoute(route, options);
         }
-        let gateWay = route.gateWay || profile.gateWay
-          || routeConfig.gateWay || options.gateWay || '192.168.1.1';
-        let metric = route.metric || profile.metric
-          || routeConfig.metric || options.metric || '5';
-        let routeAddCommand = `route add ${route.route} mask ${route.mask} ${gateWay} metric ${metric}`;
-        let result = yield exec(routeAddCommand, {cwd:rootDir});
-        stdout += routeAddCommand + ':' + result.stderr + result.stdout;
-        addingRouteProcess.tick();
+        yield routeHandlers.addRoute(route, profile, options);
       }
     }
-    //console.log(stdout);
-    return stdout;
+    options.force = true;
+    existsRoutes = yield routeHandlers.existRoutes(options);
   });
 }
 
 let allRouteHandlers = {
   win32: {
     existRoutes: existRoutesWin32,
-    deleteRoutes: deleteRoutesWin32,
-    addRoutes: addRoutesWin32,
+    addRoute: addRouteWin32,
+    deleteRoute: deleteRouteWin32,
   },
 }
 
@@ -206,16 +228,14 @@ exports.route = (options)=>{
   return spawn(function*(){
     let osPlatform = os.platform();
     let routeHandlers = allRouteHandlers[osPlatform];
-    let routes = yield routeHandlers.existRoutes(options);
-    if (options.clear) {
-      yield routeHandlers.deleteRoutes(routes, options);
+    let newOption = JSON.parse(JSON.stringify(options));
+    newOption.routeHandlers = routeHandlers;
+    if (newOption.clear) {
+      yield deleteRoutes(newOption);
     } else {
-      let routeConfig = yield prepareRoutes(options);
-      if (!options.prepare) {
-        yield routeHandlers.addRoutes(routeConfig, routes, options);
-        let newOption = JSON.parse(JSON.stringify(options));
-        newOption.force = true;
-        routes = yield routeHandlers.existRoutes(newOption);
+      newOption.routeConfig = yield prepareRoutes(newOption);
+      if (!newOption.prepare) {
+        yield addRoutes(newOption);
       }
     }
   });
