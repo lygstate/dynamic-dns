@@ -40,7 +40,7 @@ exports.parseWmicTime = (str)=>{
   let microseconds = parseInt(str.substring(yearsLength + 11, yearsLength + 17));
   let timezone = parseInt(str.substring(yearsLength + 18, yearsLength + 21));
 
-  console.log(years, months, days, hours, minutes, seconds, microseconds/ 1000, timezone);
+  //console.log(years, months, days, hours, minutes, seconds, microseconds/ 1000, timezone);
   let timeOffset = Date.UTC(years, months - 1 , days, hours, minutes, seconds, microseconds / 1000);
   let date = new Date(timeOffset - timezone * 60 * 1000);
   return date;
@@ -59,7 +59,7 @@ exports.existRoutes = (options)=>{
     if (stat) {
       let rows = yield exports.wmic('os get LastBootupTime');
       let LastBootUpTime = exports.parseWmicTime(rows[0].LastBootUpTime);
-      console.log(`mtime: ${stat.mtime} LastBootUpTime: ${LastBootUpTime}`);
+      //console.log(`mtime: ${stat.mtime} LastBootUpTime: ${LastBootUpTime}`);
       isRouteResetted = stat.mtime.getTime() < LastBootUpTime.getTime()
     }
     if (!options.force && fs.existsSync(filePath) && !isRouteResetted) {

@@ -109,7 +109,6 @@ exports.main = ()=>{
   spawn(function*(){
     try {
       if (args.service) {
-        dns.start(args)
         setTimeout(()=>{
           dns.start(args)
         });
