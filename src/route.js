@@ -60,15 +60,13 @@ let processCustomRoutes = (fileContent)=>{
 
 let prepareRoutes = (options)=>{
   return spawn(function*(){
-    let routeConfigText = fs.readFileSync(options.config, 'utf8');
-    let routeConfig = JSON.parse(routeConfigText);
-
-    routeConfig.totalRoutes = 0;
-    for (let profile of routeConfig.profiles) {
+    let config = options.config;
+    config.totalRoutes = 0;
+    for (let profile of config.routeProfiles) {
       if (profile.url) {
         let fileContent = '';
         let hashFilename = crypto.createHash('md5').update(profile.url).digest('hex') + '.log.txt';
-        let filePath = path.join(options.configDir, routeConfig.cachePath || '', hashFilename);
+        let filePath = path.join(options.configDir, config.cachePath || '', hashFilename);
         if (!options.force && fs.existsSync(filePath)) {
           fileContent = fs.readFileSync(filePath, 'utf8');
         } else {
@@ -83,9 +81,8 @@ let prepareRoutes = (options)=>{
         let fileContent = fs.readFileSync(filePath, 'utf8');
         profile.routes = processCustomRoutes(fileContent);
       }
-      routeConfig.totalRoutes += profile.routes.length;
+      config.totalRoutes += profile.routes.length;
     }
-    return routeConfig;
   });
 }
 
@@ -135,10 +132,10 @@ let addRoutes = (options)=>{
     options.force = false;
     let existsRoutes = yield routeHandlers.existRoutes(options);
     let existRouteMap = routesToMap(existsRoutes);
-    let progressOption = {width: 60, total: options.routeConfig.totalRoutes};
+    let progressOption = {width: 60, total: options.config.totalRoutes};
     let addRouteProcess = new ProgressBar('Adding routes [:bar] :percent :etas', progressOption);
     let modified = false;
-    for (let profile of options.routeConfig.profiles) {
+    for (let profile of options.config.routeProfiles) {
       for (let route of profile.routes) {
         addRouteProcess.tick();
 
@@ -147,11 +144,11 @@ let addRoutes = (options)=>{
         // we could be able to retrive the networkInterfaces from the 
         // gateWay
         route.gateWay = route.gateWay || profile.gateWay
-          || options.routeConfig.gateWay || options.gateWay || '192.168.1.1';
+          || options.config.gateWay || options.gateWay || '192.168.1.1';
         route.metric = route.metric || profile.metric
-          || options.routeConfig.metric || options.metric || '5';
+          || options.config.metric || options.metric || '5';
         route.networkInterface = route.networkInterface || profile.networkInterface
-          || options.routeConfig.networkInterface || options.networkInterface;
+          || options.config.networkInterface || options.networkInterface;
         let hasRoute = existRouteMap.has(route.route);
         if (hasRoute) {
           let existRoute = existRouteMap.get(route.route);
@@ -165,8 +162,8 @@ let addRoutes = (options)=>{
         modified = true;
       }
     }
-    console.log(`modified: ${modified} remote:${options.routeConfig.remote} ${existRouteMap.size}`);
-    if (options.routeConfig.remote && existRouteMap.size > 0) {
+    console.log(`modified: ${modified} remote:${options.config.remote} ${existRouteMap.size}`);
+    if (options.config.remote && existRouteMap.size > 0) {
       let deleteRouteProcess = createDeleteProgessBar(existRouteMap.size);
       for (let existRoute of existRouteMap.entries()) {
         yield routeHandlers.deleteRoute(existRoute[1], options);
@@ -187,9 +184,7 @@ exports.route = (options)=>{
     let osPlatform = os.platform();
     let routeHandlers = allRouteHandlers[osPlatform];
     options.routeHandlers = routeHandlers;
-    options.config = options.config || path.join(options.rootDir, 'route.json')
-    options.configDir = path.join(options.config, '..');
-    options.routeConfig = yield prepareRoutes(options);
+    yield prepareRoutes(options);
 
     if (options.clear) {
       yield deleteRoutes(options);

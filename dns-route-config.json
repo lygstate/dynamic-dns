@@ -3,7 +3,7 @@
   "networkInterface": "12",
   "remote": true,
   "cachePath": "routes",
-  "profiles": [
+  "routeProfiles": [
     {
       "path": "routes/local.txt"
     },
@@ -16,7 +16,7 @@
   ],
 
   "defaultProfileName": "192.168.1.1",
-  "profiles": [
+  "dnsProfiles": [
     {
       "matchProfileName":"8.8.8.8",
       "defaultProfileName":"192.168.1.1",

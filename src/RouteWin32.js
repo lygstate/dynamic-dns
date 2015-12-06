@@ -48,7 +48,7 @@ exports.parseWmicTime = (str)=>{
 
 exports.existRoutes = (options)=>{
   return spawn(function*(){
-    let filePath = path.join(options.configDir, options.routeConfig.cachePath || '',  'route-print.log.txt');
+    let filePath = path.join(options.configDir, options.config.cachePath || '',  'route-print.log.txt');
     let stat = null;
     try {
       stat = fs.statSync(filePath);

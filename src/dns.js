@@ -53,7 +53,7 @@ let match = (dnsConfig, host)=>{
     host: host,
     url: 'http://' + host + '/',
   }
-  for (let profile of dnsConfig.profiles) {
+  for (let profile of dnsConfig.dnsProfiles) {
     for (let rule of profile.rules) {
       if (Conditions.match(rule.condition, request)) {
         return rule
@@ -89,13 +89,9 @@ let dynamicDNS = (dnsConfig, question)=>{
 }
 
 exports.start = (options)=>{
-  let dnsConfigPath = options.config || path.join(options.rootDir, 'dns.json');
-  let dnsConfigText = fs.readFileSync(dnsConfigPath, 'utf8');
-  let dnsConfigDir = path.join(dnsConfigPath, '..');
-  let dnsConfig = JSON.parse(dnsConfigText);
-
-  for (let profile of dnsConfig.profiles) {
-    let proxylistBase64 = fs.readFileSync(path.join(dnsConfigDir, profile.path), 'utf8');
+  let dnsConfig = options.config;
+  for (let profile of dnsConfig.dnsProfiles) {
+    let proxylistBase64 = fs.readFileSync(path.join(options.configDir, profile.path), 'utf8');
     let formatHandler = RuleList[profile.format || 'AutoProxy']
     let ruleList = formatHandler.preprocess(proxylistBase64)
     let defaultProfileName = profile.defaultProfileName || dnsConfig.defaultProfileName;

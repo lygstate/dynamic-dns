@@ -4,6 +4,7 @@ const route = require('./src/route.js');
 const ArgumentParser = require('argparse').ArgumentParser;
 const spawn = require('./src/Spawn.js').spawn;
 const path = require('path');
+const fs = require('fs');
 
 exports.createArgumentParser = ()=>{
   let parser = new ArgumentParser({
@@ -57,7 +58,7 @@ exports.createArgumentParser = ()=>{
       help: 'The config file path for route or dns resolver',
       defaultValue: null,
       required : false,
-      dest: 'config',
+      dest: 'configPath',
       action: 'store',
     }
   );
@@ -94,20 +95,24 @@ exports.createArgumentParser = ()=>{
   return parser;
 }
 exports.main = ()=>{
-  let parser = exports.createArgumentParser();
-  let args = parser.parseArgs();
-  console.log(JSON.stringify(args));
-
-  if (args.routeClear) {
-    args.route = true;
-    args.clear = true;
-  }
-  if (args.config) {
-    args.config = path.resolve(args.config)
-  }
-  args.rootDir = __dirname;
   spawn(function*(){
     try {
+      let parser = exports.createArgumentParser();
+      let args = parser.parseArgs();
+      console.log(JSON.stringify(args));
+      if (args.routeClear) {
+        args.route = true;
+        args.clear = true;
+      }
+      args.rootDir = __dirname;
+      if (args.configPath) {
+        args.configPath = path.resolve(args.configPath)
+      } else {
+        args.configPath = path.join(args.rootDir, 'dns-route-config.json')
+      }
+      args.configDir = path.join(args.configPath, '..');
+      let configText = fs.readFileSync(args.configPath, 'utf8');
+      args.config = JSON.parse(configText);
       if (args.service) {
         setTimeout(()=>{
           dns.start(args)
