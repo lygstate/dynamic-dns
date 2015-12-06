@@ -102,7 +102,7 @@ let routesToMap = (routes)=>{
 }
 
 let createDeleteProgessBar = (count)=>{
-  return new ProgressBar(':Deleting exist routes [:bar] :percent :etas', {width: 60, total: count});
+  return new ProgressBar('Deleting exist routes [:bar] :percent :etas', {width: 60, total: count});
 }
 
 let deleteRoutes = (options)=>{
@@ -140,7 +140,7 @@ let addRoutes = (options)=>{
     let existsRoutes = yield routeHandlers.existRoutes(options);
     let existRouteMap = routesToMap(existsRoutes);
     let progressOption = {width: 60, total: options.routeConfig.totalRoutes};
-    let addRouteProcess = new ProgressBar(':Adding routes [:bar] :percent :etas', progressOption);
+    let addRouteProcess = new ProgressBar('Adding routes [:bar] :percent :etas', progressOption);
     let modified = false;
     for (let profile of options.routeConfig.profiles) {
       for (let route of profile.routes) {
