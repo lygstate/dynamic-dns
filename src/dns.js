@@ -48,7 +48,6 @@ let resolveName = (options)=>{
   let req = dns.Request({
     question: question,
     server: { address: options.dnsAddress, port: 53, type: options.dnsType },
-    timeout: 500,
   });
   req.on('timeout', function () {
     logger.warn('Timeout in making request:' + JSON.stringify(options));
