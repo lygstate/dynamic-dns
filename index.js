@@ -62,7 +62,17 @@ exports.createArgumentParser = ()=>{
     }
   );
   parser.addArgument(
-    ['--gw', '--gateway'],
+    ['-s', '--service'],
+    {
+      help: 'Running the dns as service, and when rebooting, refresh the route table',
+      defaultValue: false,
+      required : false,
+      dest: 'service',
+      action: 'storeTrue',
+    }
+  );
+  parser.addArgument(
+    ['--gateway'],
     {
       help: 'The final gate way option',
       defaultValue: false,
@@ -98,7 +108,13 @@ exports.main = ()=>{
   args.rootDir = __dirname;
   spawn(function*(){
     try {
-      if (args.route) {
+      if (args.service) {
+        dns.start(args)
+        setTimeout(()=>{
+          dns.start(args)
+        });
+        yield route.route(args);
+      } else if (args.route) {
         yield route.route(args);
       } else {
         dns.start(args);

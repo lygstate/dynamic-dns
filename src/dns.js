@@ -94,13 +94,13 @@ exports.start = (options)=>{
   let dnsConfigDir = path.join(dnsConfigPath, '..');
   let dnsConfig = JSON.parse(dnsConfigText);
 
-  dnsConfig.profiles.forEach((profile)=>{
+  for (let profile of dnsConfig.profiles) {
     let proxylistBase64 = fs.readFileSync(path.join(dnsConfigDir, profile.path), 'utf8');
     let formatHandler = RuleList[profile.format || 'AutoProxy']
     let ruleList = formatHandler.preprocess(proxylistBase64)
     let defaultProfileName = profile.defaultProfileName || dnsConfig.defaultProfileName;
     profile.rules = formatHandler.parse(ruleList, profile.matchProfileName, defaultProfileName)
-  });
+  }
   dynamicDNS(dnsConfig, {name:'google.com'});
   dynamicDNS(dnsConfig, {name:'facebook.com'});
   dynamicDNS(dnsConfig, {name:'twitter.com'});
@@ -109,13 +109,7 @@ exports.start = (options)=>{
   console.log('facebook', match(dnsConfig, 'www.facebook.com').profileName);
   console.log('google', match(dnsConfig, 'google.com').profileName);
 
-  for (let i of [1,2,3]) {
-    let startTime = Date.now();
-    console.log(i, match('www.google.com').profileName);
-    console.log(Date.now() - startTime);
-  }
   let server = dns.createServer();
-
   server.on('request', function (request, response) {
     dynamicDNS(dnsConfig, request.question[0]).then((answer)=>{
       response.answer = answer;
