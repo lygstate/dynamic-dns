@@ -14,7 +14,13 @@ const defer = require('./Deferred.js').defer;
 
 const rootDir = path.join(__dirname, '..')
 
-function intToIP(int) {
+const RouteWin32 = require('./RouteWin32.js');
+
+const allRouteHandlers = {
+  win32: RouteWin32
+}
+
+let intToIP = (int)=>{
     var part1 = int & 255;
     var part2 = ((int >> 8) & 255);
     var part3 = ((int >> 16) & 255);
@@ -23,7 +29,7 @@ function intToIP(int) {
     return part4 + '.' + part3 + '.' + part2 + '.' + part1;
 }
 
-function processOnlineRoutes(fileContent) {
+let processOnlineRoutes = (fileContent)=>{
   const apnicRegExp = /apnic\|cn\|ipv4\|([0-9\.]+)\|([0-9]+)\|[0-9]+\|a.*/gmi
   let routes = [];
   let match = null;
@@ -39,7 +45,7 @@ function processOnlineRoutes(fileContent) {
   return routes
 }
 
-function processCustomRoutes(fileContent) {
+let processCustomRoutes = (fileContent)=>{
   const customRegExp = /[^0-9\.\r\n\s]*([0-9\.]+)\|([0-9]+)[^0-9\.\r\n\s]*/gmi
   let routes = [];
   let match = null;
@@ -55,78 +61,7 @@ function processCustomRoutes(fileContent) {
   return routes
 }
 
-function exec(command, options) {
-  options = options || {};
-  let deferred = defer();
-  let result = ChildProcess.exec(command, options, function(error, stdout, stderr){
-    deferred.resolve({
-      result: result,
-      error: error,
-      stdout: stdout,
-      stderr: stderr,
-      command: command,
-    });
-  });
-  return deferred.promise;
-}
-
-let existRoutesWin32 = (options)=>{
-  return spawn(function*(){
-    let filePath = path.join(rootDir, 'routes', 'route-print.log.txt');
-    if (!options.force && fs.existsSync(filePath)) {
-      let fileContent = fs.readFileSync(filePath, 'utf8');
-      return JSON.parse(fileContent);
-    }
-    const routeRegExp = /[^0-9\.\r\n]*([^\s]+)\s+([0-9\.]+)\s+([^\s]+)\s+([0-9\.]+)\s+([0-9]+)\s*\n/gmi
-    let result = yield exec('route print -4', {cwd:rootDir, maxBuffer: 1024*1024*64 });
-    let match = null;
-    let routes = [];
-    let text = result.stdout;
-    while (match = routeRegExp.exec(text)) {
-      let gateWay = match[3];
-      if (isNaN(parseInt(gateWay))) { //On-link or other works
-        continue;
-      }
-      let route = match[1];
-      let mask = match[2];
-      let networkInterface = match[4];
-      let metric = match[5];
-      if (route === '0.0.0.0' || mask === '255.255.255.255') {
-        continue;
-      }
-      routes.push({
-        route: route,
-        mask: mask,
-        gateWay: gateWay,
-        metric: metric,
-        networkInterface: networkInterface,//TODO: convert to networkInterface id;
-      });
-    }
-    console.log(routes.length);
-    fs.writeFileSync(filePath, JSON.stringify(routes, null, 2), 'utf8');
-    return routes;
-  })
-}
-
-let routeEqual = (a,b)=>{
-  return a.route === b.route &&
-        a.mask === b.mask &&
-        a.gateWay === b.gateWay
-}
-
-let addRouteWin32 = (route, options)=>{
-  let routeAddCommand = `route add ${route.route} mask ${route.mask} ${route.gateWay} metric ${route.metric}`;
-  if (route.networkInterface) {
-    routeAddCommand += ` if ${route.networkInterface}`
-  }
-  return exec(routeAddCommand, {cwd:rootDir})
-}
-
-let deleteRouteWin32 = (route, options)=>{
-  return exec(`route delete ${route.route}`, {cwd:rootDir});
-}
-
-function prepareRoutes(options){
+let prepareRoutes = (options)=>{
   return spawn(function*(){
     let routeConfigPath = options.config || path.join(rootDir, 'route.json')
     let routeConfigDir = path.join(routeConfigPath, '..');
@@ -170,7 +105,7 @@ let createDeleteProgessBar = (count)=>{
   return new ProgressBar(':Deleting exist routes [:bar] :percent :etas', {width: 60, total: count});
 }
 
-function deleteRoutes(options) {
+let deleteRoutes = (options)=>{
   return spawn(function*(){
     let routeHandlers = options.routeHandlers;
     let i = 0;
@@ -192,7 +127,13 @@ function deleteRoutes(options) {
   });
 }
 
-function addRoutes(options) {
+let routeEqual = (a,b)=>{
+  return a.route === b.route &&
+        a.mask === b.mask &&
+        a.gateWay === b.gateWay
+}
+
+let addRoutes = (options)=>{
   return spawn(function*(){
     let routeHandlers = options.routeHandlers;
     options.force = false;
@@ -244,20 +185,13 @@ function addRoutes(options) {
   });
 }
 
-let allRouteHandlers = {
-  win32: {
-    existRoutes: existRoutesWin32,
-    addRoute: addRouteWin32,
-    deleteRoute: deleteRouteWin32,
-  },
-}
-
 exports.route = (options)=>{
   return spawn(function*(){
     let osPlatform = os.platform();
     let routeHandlers = allRouteHandlers[osPlatform];
     let newOption = JSON.parse(JSON.stringify(options));
     newOption.routeHandlers = routeHandlers;
+    newOption.rootDir = rootDir;
     if (newOption.clear) {
       yield deleteRoutes(newOption);
     } else {
