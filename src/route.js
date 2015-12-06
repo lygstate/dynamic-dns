@@ -6,6 +6,7 @@ const path = require('path');
 const request = require('request');
 const crypto = require('crypto');
 const ChildProcess = require('child_process');
+const ProgressBar = require('progress');
 
 const Q = require('q');
 const spawn = require('./Spawn.js').spawn;
@@ -39,7 +40,7 @@ function processOnlineRoutes(fileContent) {
 }
 
 function processCustomRoutes(fileContent) {
-  const customRegExp = /([0-9\.]+)\|([0-9]+)/gmi
+  const customRegExp = /\r\n\s*([0-9\.]+)\|([0-9]+)\s*\r\n/gmi
   let routes = [];
   let match = null;
   while (match = customRegExp.exec(fileContent)) {
@@ -70,7 +71,7 @@ function exec(command, options) {
 
 function existRoutesWin32(options) {
   return spawn(function*(){
-    let filePath = path.join(rootDir, 'routes', 'route-print.txt');
+    let filePath = path.join(rootDir, 'routes', 'route-print.log.txt');
     if (!options.force && fs.existsSync(filePath)) {
       let fileContent = fs.readFileSync(filePath, 'utf8');
       return JSON.parse(fileContent);
@@ -106,33 +107,36 @@ function existRoutesWin32(options) {
   })
 }
 
-function deleteRoutesWin32(routes, options) {
-  return spawn(function*(){
-    for (let route of routes) {
-      let result = yield exec(`route delete ${route.route}`, {cwd:rootDir});
-      console.log(result.stdout);
-    }
+function deleteRouteWin32(route, option) {
+  let deleteRouteCommand = `route delete ${route.route}`;
+  return exec(deleteRouteCommand, {cwd:rootDir}).then((result)=>{
+    return deleteRouteCommand + ':' + result.stderr + result.stdout;
   });
 }
 
-function addRoutesWin32(routeConfig, options) {
+function deleteRoutesWin32(routes, options) {
   return spawn(function*(){
+    let stdout = '';
     for (let route of routes) {
-      let result = yield exec(`route add ${route.route}`, {cwd:rootDir});
-      console.log(result.stdout);
+      stdout += yield deleteRouteWin32(route, options);
     }
+    return stdout;
   });
 }
 
 function prepareRoutes(options){
   return spawn(function*(){
-    let routeConfigText = fs.readFileSync(path.join(rootDir, 'route.json'), 'utf8');
+    let routeConfigPath = options.config || path.join(rootDir, 'route.json')
+    let routeConfigDir = path.join(routeConfigPath, '..');
+    let routeConfigText = fs.readFileSync(routeConfigPath, 'utf8');
     let routeConfig = JSON.parse(routeConfigText);
+
+    routeConfig.totalRoutes = 0;
     for (let profile of routeConfig.profiles) {
       if (profile.url) {
         let fileContent = '';
-        let filePath = path.join(rootDir, 'routes', crypto.createHash('md5').update(profile.url).digest('hex') + '.txt');
-        if (fs.existsSync(filePath)) {
+        let filePath = path.join(routeConfigDir,profile.path || '', crypto.createHash('md5').update(profile.url).digest('hex') + '.log.txt');
+        if (!options.force && fs.existsSync(filePath)) {
           fileContent = fs.readFileSync(filePath, 'utf8');
         } else {
           let res = yield Q.nfcall(request.get, profile.url)
@@ -142,13 +146,47 @@ function prepareRoutes(options){
         }
         profile.routes = processOnlineRoutes(fileContent);
       } else if (profile.path){
-        let filePath = path.join(rootDir, profile.path);
-        let fileContent = fs.readFileSync(profile.path, 'utf8');
+        let filePath = path.join(routeConfigDir, profile.path);
+        let fileContent = fs.readFileSync(filePath, 'utf8');
         profile.routes = processCustomRoutes(fileContent);
       }
       console.log(profile.routes.length)
+      routeConfig.totalRoutes += profile.routes.length;
     }
     return routeConfig;
+  });
+}
+
+let routesToSet = (routes)=>{
+  let existsRoutes = new Set();
+  for (let route of routes) {
+    existsRoutes.add(route.route);
+  }
+  return existsRoutes;
+}
+
+function addRoutesWin32(routeConfig, existsRoutes, options) {
+  let existRouteSet = routesToSet(existsRoutes);
+  return spawn(function*(){
+    let addingRouteProcess = new ProgressBar(':Adding routes [:bar] :percent :etas', {width: 60, total: routeConfig.totalRoutes });
+    let stdout = "";
+    for (let profile of routeConfig.profiles) {
+      for (let route of profile.routes) {
+        if (profile.deleteFirst || existRouteSet.has(route.route)){
+          stdout += yield deleteRouteWin32(route, options);
+        }
+        let gateWay = route.gateWay || profile.gateWay
+          || routeConfig.gateWay || options.gateWay || '192.168.1.1';
+        let metric = route.metric || profile.metric
+          || routeConfig.metric || options.metric || '5';
+        let routeAddCommand = `route add ${route.route} mask ${route.mask} ${gateWay} metric ${metric}`;
+        let result = yield exec(routeAddCommand, {cwd:rootDir});
+        stdout += routeAddCommand + ':' + result.stderr + result.stdout;
+        addingRouteProcess.tick();
+      }
+    }
+    console.log(stdout);
+    return stdout;
   });
 }
 
@@ -156,9 +194,9 @@ let allRouteHandlers = {
   win32: {
     existRoutes: existRoutesWin32,
     deleteRoutes: deleteRoutesWin32,
+    addRoutes: addRoutesWin32,
   },
 }
-
 
 exports.route = (options)=>{
   return spawn(function*(){
@@ -168,9 +206,9 @@ exports.route = (options)=>{
     if (options.clear) {
       yield routeHandlers.deleteRoutes(routes, options);
     } else {
-      let routeConfig = yield prepareRoutes();
+      let routeConfig = yield prepareRoutes(options);
       if (!options.prepare) {
-        addRoutesWin32(routeConfig, options);
+        yield routeHandlers.addRoutes(routeConfig, routes, options);
       }
     }
   });

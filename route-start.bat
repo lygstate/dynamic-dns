@@ -1,5 +1,6 @@
 ::Start as administrator
 cd /d %~dp0
 set "WD=%CD%"
-"%WD%\node.exe" "%WD%\index.js" -rcf
+ipconfig /flushdns
+"%WD%\node.exe" "%WD%\index.js" -r --config route.json
 pause

@@ -51,6 +51,26 @@ exports.createArgumentParser = ()=>{
     }
   );
   parser.addArgument(
+    ['--config'],
+    {
+      help: 'The config file path for route or dns resolver',
+      defaultValue: null,
+      required : false,
+      dest: 'config',
+      action: 'store',
+    }
+  );
+  parser.addArgument(
+    ['--gw', '--gateway'],
+    {
+      help: 'The final gate way option',
+      defaultValue: false,
+      required : false,
+      dest: 'gateWay',
+      action: 'store',
+    }
+  );
+  parser.addArgument(
     [ '--route-clear' ],
     {
       help: 'route clear',

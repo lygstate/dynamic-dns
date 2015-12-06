@@ -1,15 +1,16 @@
 {
-  "defaultProfileName": "192.168.1.1",
+  "gateWay": "192.168.1.1",
   "profiles": [
     {
-      "url": "https://ftp.apnic.net/apnic/stats/apnic/delegated-apnic-latest"
-    },
-    {
-      "delete": true,
+      "deleteFirst": true,
       "path": "routes/local.txt"
     },
     {
       "path": "routes/custom.txt"
+    },
+    {
+      "url": "https://ftp.apnic.net/apnic/stats/apnic/delegated-apnic-latest",
+      "path": "routes"
     }
   ]
 }
