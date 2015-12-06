@@ -58,7 +58,7 @@ function processCustomRoutes(fileContent) {
 function exec(command, options) {
   options = options || {};
   let deferred = defer();
-  let result = ChildProcess.exec(command, {cwd:rootDir}, function(error, stdout, stderr){
+  let result = ChildProcess.exec(command, options, function(error, stdout, stderr){
     deferred.resolve({
       result: result,
       error: error,
@@ -77,20 +77,19 @@ let existRoutesWin32 = (options)=>{
       let fileContent = fs.readFileSync(filePath, 'utf8');
       return JSON.parse(fileContent);
     }
-    const routeRegExp = /[\r\n]+\s+([0-9\.]+)\s+([0-9\.]+)\s+([^\s]+)\s+([0-9\.]+)\s+([0-9]+)/gmi
-    let result = yield exec('route print -4', {cwd:rootDir});
-    let routeTables = result.stdout.split('===========================================================================');
-    let ipv4RouteTables = routeTables[3];
+    const routeRegExp = /[^0-9\.\r\n]*([^\s]+)\s+([0-9\.]+)\s+([^\s]+)\s+([0-9\.]+)\s+([0-9]+)\s*\n/gmi
+    let result = yield exec('route print -4', {cwd:rootDir, maxBuffer: 1024*1024*64 });
     let match = null;
     let routes = [];
-    while (match = routeRegExp.exec(ipv4RouteTables)) {
+    let text = result.stdout;
+    while (match = routeRegExp.exec(text)) {
       let gateWay = match[3];
       if (isNaN(parseInt(gateWay))) { //On-link or other works
         continue;
       }
       let route = match[1];
       let mask = match[2];
-      let netInterface = match[4];
+      let networkInterface = match[4];
       let metric = match[5];
       if (route === '0.0.0.0' || mask === '255.255.255.255') {
         continue;
@@ -99,41 +98,37 @@ let existRoutesWin32 = (options)=>{
         route: route,
         mask: mask,
         gateWay: gateWay,
-        netInterface: netInterface,
         metric: metric,
+        networkInterface: networkInterface,//TODO: convert to networkInterface id;
       });
     }
+    console.log(routes.length);
     fs.writeFileSync(filePath, JSON.stringify(routes, null, 2), 'utf8');
     return routes;
   })
 }
 
-let addRouteWin32 = (route, profile, options)=>{
-  // TODO: once os.networkInterfaces() are works properly
-  // then use it instead of networkInterface paramter
-  // we could be able to retrive the networkInterfaces from the 
-  // gateWay
-  let gateWay = route.gateWay || profile.gateWay
-    || options.routeConfig.gateWay || options.gateWay || '192.168.1.1';
-  let metric = route.metric || profile.metric
-    || options.routeConfig.metric || options.metric || '5';
-  let networkInterface = route.networkInterface || profile.networkInterface
-    || options.routeConfig.networkInterface || options.networkInterface;
-  let routeAddCommand = `route add ${route.route} mask ${route.mask} ${gateWay} metric ${metric}`;
-  if (networkInterface) {
-    routeAddCommand += ` if ${networkInterface}`
+let routeEqual = (a,b)=>{
+  return a.route === b.route &&
+        a.mask === b.mask &&
+        a.gateWay === b.gateWay
+}
+
+let addRouteWin32 = (route, options)=>{
+  let routeAddCommand = `route add ${route.route} mask ${route.mask} ${route.gateWay} metric ${route.metric}`;
+  if (route.networkInterface) {
+    routeAddCommand += ` if ${route.networkInterface}`
   }
   return exec(routeAddCommand, {cwd:rootDir})
 }
 
-let deleteRouteWin32 = (route, option)=>{
+let deleteRouteWin32 = (route, options)=>{
   return exec(`route delete ${route.route}`, {cwd:rootDir});
 }
 
 function prepareRoutes(options){
   return spawn(function*(){
     let routeConfigPath = options.config || path.join(rootDir, 'route.json')
-    console.log(routeConfigPath)
     let routeConfigDir = path.join(routeConfigPath, '..');
     let routeConfigText = fs.readFileSync(routeConfigPath, 'utf8');
     let routeConfig = JSON.parse(routeConfigText);
@@ -157,17 +152,16 @@ function prepareRoutes(options){
         let fileContent = fs.readFileSync(filePath, 'utf8');
         profile.routes = processCustomRoutes(fileContent);
       }
-      console.log(profile.routes.length)
       routeConfig.totalRoutes += profile.routes.length;
     }
     return routeConfig;
   });
 }
 
-let routesToSet = (routes)=>{
-  let existsRoutes = new Set();
+let routesToMap = (routes)=>{
+  let existsRoutes = new Map();
   for (let route of routes) {
-    existsRoutes.add(route.route);
+    existsRoutes.set(route.route, route);
   }
   return existsRoutes;
 }
@@ -176,8 +170,10 @@ function deleteRoutes(options) {
   return spawn(function*(){
     let routeHandlers = options.routeHandlers;
     let i = 0;
+    options.force = false;
     while (true) {
       let existsRoutes = yield routeHandlers.existRoutes(options);
+      options.force = true;
       if (!existsRoutes || existsRoutes.length === 0) {
         break;
       }
@@ -197,21 +193,42 @@ function addRoutes(options) {
     let routeHandlers = options.routeHandlers;
     options.force = false;
     let existsRoutes = yield routeHandlers.existRoutes(options);
-    let existRouteSet = routesToSet(existsRoutes);
+    let existRouteMap = routesToMap(existsRoutes);
     let progressOption = {width: 60, total: options.routeConfig.totalRoutes};
     let addRouteProcess = new ProgressBar(':Adding routes [:bar] :percent :etas', progressOption);
+    let modified = false;
     for (let profile of options.routeConfig.profiles) {
       for (let route of profile.routes) {
         addRouteProcess.tick();
 
-        if (profile.deleteFirst || existRouteSet.has(route.route)){
+        // TODO: once os.networkInterfaces() are works properly
+        // then use it instead of networkInterface paramter
+        // we could be able to retrive the networkInterfaces from the 
+        // gateWay
+        route.gateWay = route.gateWay || profile.gateWay
+          || options.routeConfig.gateWay || options.gateWay || '192.168.1.1';
+        route.metric = route.metric || profile.metric
+          || options.routeConfig.metric || options.metric || '5';
+        route.networkInterface = route.networkInterface || profile.networkInterface
+          || options.routeConfig.networkInterface || options.networkInterface;
+        if (existRouteMap.has(route.route)) {
+          let existRoute = existRouteMap.get(route.route);
+          if (routeEqual(existRoute, route)) {
+            continue;
+          }
+        }
+        if (existRouteMap.has(route.route)){
           let result = yield routeHandlers.deleteRoute(route, options);
         }
-        yield routeHandlers.addRoute(route, profile, options);
+        yield routeHandlers.addRoute(route, options);
+        modified = true;
       }
     }
-    options.force = true;
-    existsRoutes = yield routeHandlers.existRoutes(options);
+    console.log(`modified: ${modified}`);
+    if (modified) {
+      options.force = true;
+      existsRoutes = yield routeHandlers.existRoutes(options);
+    }
   });
 }
 

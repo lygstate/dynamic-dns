@@ -3,7 +3,6 @@
   "networkInterface": "12",
   "profiles": [
     {
-      "deleteFirst": true,
       "path": "routes/local.txt"
     },
     {
