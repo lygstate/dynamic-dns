@@ -1,7 +1,14 @@
 {
   "gateWay": "192.168.1.1",
   "networkInterface": "12",
+  "remote": true,
   "profiles": [
+    {
+      "path": "routes/local.txt"
+    },
+    {
+      "path": "routes/custom.txt"
+    },
     {
       "url": "https://ftp.apnic.net/apnic/stats/apnic/delegated-apnic-latest",
       "path": "routes"

@@ -166,6 +166,10 @@ let routesToMap = (routes)=>{
   return existsRoutes;
 }
 
+let createDeleteProgessBar = (count)=>{
+  return new ProgressBar(':Deleting exist routes [:bar] :percent :etas', {width: 60, total: count});
+}
+
 function deleteRoutes(options) {
   return spawn(function*(){
     let routeHandlers = options.routeHandlers;
@@ -177,7 +181,7 @@ function deleteRoutes(options) {
       if (!existsRoutes || existsRoutes.length === 0) {
         break;
       }
-      let deleteRouteProcess = new ProgressBar(':Deleting exist routes [:bar] :percent :etas', {width: 60, total: existsRoutes.length });
+      let deleteRouteProcess = createDeleteProgessBar(existsRoutes.length);
 
       for (let route of existsRoutes) {
         yield routeHandlers.deleteRoute(route, options);
@@ -211,20 +215,28 @@ function addRoutes(options) {
           || options.routeConfig.metric || options.metric || '5';
         route.networkInterface = route.networkInterface || profile.networkInterface
           || options.routeConfig.networkInterface || options.networkInterface;
-        if (existRouteMap.has(route.route)) {
+        let hasRoute = existRouteMap.has(route.route);
+        if (hasRoute) {
           let existRoute = existRouteMap.get(route.route);
+          existRouteMap.delete(route.route);
           if (routeEqual(existRoute, route)) {
             continue;
           }
-        }
-        if (existRouteMap.has(route.route)){
           let result = yield routeHandlers.deleteRoute(route, options);
         }
         yield routeHandlers.addRoute(route, options);
         modified = true;
       }
     }
-    console.log(`modified: ${modified}`);
+    console.log(`modified: ${modified} remote:${options.routeConfig.remote} ${existRouteMap.size}`);
+    if (options.routeConfig.remote && existRouteMap.size > 0) {
+      let deleteRouteProcess = createDeleteProgessBar(existRouteMap.size);
+      for (let existRoute of existRouteMap.entries()) {
+        yield routeHandlers.deleteRoute(existRoute[1], options);
+        deleteRouteProcess.tick();
+      }
+      modified = true;
+    }
     if (modified) {
       options.force = true;
       existsRoutes = yield routeHandlers.existRoutes(options);
