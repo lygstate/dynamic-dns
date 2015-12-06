@@ -13,5 +13,14 @@
     {
       "url": "https://ftp.apnic.net/apnic/stats/apnic/delegated-apnic-latest"
     }
+  ],
+
+  "defaultProfileName": "192.168.1.1",
+  "profiles": [
+    {
+      "matchProfileName":"8.8.8.8",
+      "defaultProfileName":"192.168.1.1",
+      "path": "dnses/custom.txt"
+    }
   ]
 }
